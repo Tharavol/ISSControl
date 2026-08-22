@@ -7,6 +7,14 @@ read from and written straight to Windows Credential Manager via
 iss_credentials, keyed by whatever host/user is showing at the time, and is
 otherwise left blank on open so a stored password is never redisplayed in
 plain text.
+
+Resolution, Display scale, and Decoder are dropdowns rather than free text,
+with the same options, labels, and defaults as isharescreen's own web
+connect form (isharescreen.gui.connect._FORM) -- pulled from that form's
+HTML/_DECODER_LABELS directly, not reinvented, so a value here means the
+same thing it would mean typed into that form. vt-hevc444 (VideoToolbox) is
+missing on purpose: it's Darwin-only decode hardware, and ISSControl only
+ever runs as the Windows-side viewer.
 """
 
 from __future__ import annotations
@@ -16,6 +24,47 @@ from tkinter import ttk
 
 from . import iss_credentials, theme
 from .settings import save_settings
+
+# (display label, underlying value) -- same order and wording as the web
+# form's own <option> list.
+RESOLUTION_OPTIONS = [
+    ("Auto — track window size", "auto"),
+    ("3840 x 2160 (4K UHD)", "3840x2160"),
+    ("3440 x 1440 (UWQHD)", "3440x1440"),
+    ("2560 x 1600 (WQXGA)", "2560x1600"),
+    ("2560 x 1440 (QHD)", "2560x1440"),
+    ("1920 x 1200 (WUXGA)", "1920x1200"),
+    ("1920 x 1080 (FHD)", "1920x1080"),
+    ("1680 x 1050 (WSXGA+)", "1680x1050"),
+    ("1600 x 900 (HD+)", "1600x900"),
+    ("1366 x 768 (WXGA)", "1366x768"),
+    ("1280 x 720 (HD)", "1280x720"),
+    ("1024 x 768 (XGA)", "1024x768"),
+    ("800 x 600 (SVGA)", "800x600"),
+]
+
+SCALE_OPTIONS = [
+    ("100% — smallest UI, most desktop space", "1.0"),
+    ("150%", "1.5"),
+    ("200% — Retina (normal UI, crisp)", "2.0"),
+    ("250%", "2.5"),
+    ("300% — large UI", "3.0"),
+    ("350%", "3.5"),
+    ("400% — largest UI", "4.0"),
+]
+
+# The web form filters this list to decoders actually available on the
+# connecting machine; ISSControl doesn't probe iss's internal decoder
+# registry to do the same (that's private API, not a CLI/settings surface),
+# so this is the static Windows-relevant subset -- everything except
+# vt-hevc444, which supported_here() never offers off Darwin anyway.
+DECODER_OPTIONS = [
+    ("Auto (best available)", "auto"),
+    ("HEVC — Generic GPU (d3d11va / vaapi / cuda)", "libav-hevc444"),
+    ("HEVC — Intel Quick Sync", "qsv-hevc444"),
+    ("HEVC — Software (CPU)", "libav-hevc444-sw"),
+    ("H.264", "libav-avc420"),
+]
 
 
 class SettingsDialog(tk.Toplevel):
@@ -34,9 +83,9 @@ class SettingsDialog(tk.Toplevel):
         self._host = tk.StringVar(value=settings.get("host", ""))
         self._user = tk.StringVar(value=settings.get("user", ""))
         self._password = tk.StringVar(value="")
-        self._advertise = tk.StringVar(value=settings.get("advertise", ""))
-        self._hidpi = tk.StringVar(value=settings.get("hidpi", ""))
-        self._decoder = tk.StringVar(value=settings.get("decoder", ""))
+        self._advertise = tk.StringVar(value=settings.get("advertise", "auto"))
+        self._hidpi = tk.StringVar(value=settings.get("hidpi", "2.0"))
+        self._decoder = tk.StringVar(value=settings.get("decoder", "auto"))
         self._audio = tk.BooleanVar(value=settings.get("audio", True))
         self._curtain = tk.BooleanVar(value=settings.get("curtain", True))
 
@@ -74,17 +123,34 @@ class SettingsDialog(tk.Toplevel):
             outer, row, "User", self._user, "macOS account", track_password=True
         )
         row = self._build_password_row(outer, row)
-        row = self._field_row(
-            outer, row, "Resolution", self._advertise, "e.g. 1920x1080 -- blank for auto"
+        row = self._combo_row(
+            outer,
+            row,
+            "Resolution",
+            self._advertise,
+            RESOLUTION_OPTIONS,
+            "The encoded pixel size = bandwidth. Display scale below sets\n"
+            "how large the UI is drawn -- independently of this.",
         )
-        row = self._field_row(
+        row = self._combo_row(
             outer,
             row,
             "Display scale",
             self._hidpi,
-            "auto / on / off / a number -- blank for auto",
+            SCALE_OPTIONS,
+            "How large the host's UI is drawn, like Windows display scaling.\n"
+            "Higher = bigger text/UI. Does not change Resolution's bandwidth.",
         )
-        row = self._field_row(outer, row, "Decoder", self._decoder, "blank for auto")
+        row = self._combo_row(
+            outer,
+            row,
+            "Decoder",
+            self._decoder,
+            DECODER_OPTIONS,
+            "Auto picks the best decoder for the negotiated codec. The rest\n"
+            "pin a specific path for debugging -- iss falls back to Auto's\n"
+            "choice if the one you pick isn't actually available here.",
+        )
 
         ttk.Checkbutton(outer, text="Audio", variable=self._audio).grid(
             row=row, column=0, columnspan=2, sticky="w", pady=(10, 0)
@@ -125,7 +191,48 @@ class SettingsDialog(tk.Toplevel):
         if track_password:
             entry.bind("<KeyRelease>", lambda _event: self._refresh_password_status())
         row += 1
-        ttk.Label(parent, text=hint, style="Muted.TLabel").grid(
+        ttk.Label(parent, text=hint, style="Muted.TLabel", justify="left").grid(
+            row=row, column=1, sticky="w", padx=(10, 0)
+        )
+        return row + 1
+
+    def _combo_row(
+        self,
+        parent: ttk.Frame,
+        row: int,
+        label: str,
+        variable: tk.StringVar,
+        options: list[tuple[str, str]],
+        hint: str,
+    ) -> int:
+        """A readonly Combobox whose displayed labels differ from the value
+        *variable* actually holds -- Tk has no native (label, value) pair
+        widget, so a display-only StringVar is kept in sync with it by hand.
+        """
+        ttk.Label(parent, text=label, style="TLabel").grid(
+            row=row, column=0, sticky="w", pady=(8, 0)
+        )
+
+        value_by_label = dict(options)
+        label_by_value = {value: display for display, value in options}
+
+        display_var = tk.StringVar(value=label_by_value.get(variable.get(), options[0][0]))
+        combo = ttk.Combobox(
+            parent,
+            textvariable=display_var,
+            values=[display for display, _value in options],
+            state="readonly",
+            width=30,
+        )
+        combo.grid(row=row, column=1, sticky="ew", pady=(8, 0), padx=(10, 0))
+
+        def _sync(*_args: object) -> None:
+            variable.set(value_by_label.get(display_var.get(), variable.get()))
+
+        display_var.trace_add("write", _sync)
+
+        row += 1
+        ttk.Label(parent, text=hint, style="Muted.TLabel", justify="left").grid(
             row=row, column=1, sticky="w", padx=(10, 0)
         )
         return row + 1
@@ -178,9 +285,9 @@ class SettingsDialog(tk.Toplevel):
             **self._settings,
             "host": host,
             "user": user,
-            "advertise": self._advertise.get().strip(),
-            "hidpi": self._hidpi.get().strip(),
-            "decoder": self._decoder.get().strip(),
+            "advertise": self._advertise.get(),
+            "hidpi": self._hidpi.get(),
+            "decoder": self._decoder.get(),
             "audio": self._audio.get(),
             "curtain": self._curtain.get(),
         }

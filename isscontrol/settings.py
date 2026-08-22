@@ -15,8 +15,11 @@ remain reachable only by hand-editing the file, same as pwgen/AddOnTools'
 settings.json before either project had a preferences dialog.
 
 The connection defaults (host/user/advertise/hidpi/decoder/audio/curtain)
-mirror the CLI flags iss's own browser connect form pre-fills from -- see
-iss_launch.py, which turns these into that argv. The password is
+mirror the *values* isharescreen's own web connect form (isharescreen.gui.
+connect) offers -- same resolution/scale/decoder presets, same defaults --
+so the settings dialog reads like that form. iss_launch.py is where these
+turn into iss's actual argv, including reproducing that form's own
+resolution-plus-scale-become-one---advertise-flag math. The password is
 deliberately not one of these fields: iss has no --password flag by design
 (anything on argv is visible in ps/Task Manager), and settings.json is
 plaintext read/write with no access control, so it is not a place to put a
@@ -54,14 +57,17 @@ DEFAULT_SETTINGS = {
     # "" means autodetect (find_iss()'s own search order) -- see issue #4.
     "iss_path_override": "",
     "iss_args": [],
-    # Connection defaults (#14): "" for a string field means "omit the flag,
-    # let iss use its own default" -- distinct from a saved empty string
-    # being a meaningful choice, there's no such case among these.
+    # Connection defaults (#14). host/user: "" means the field is blank.
+    # advertise/hidpi/decoder default to the same choices isharescreen's own
+    # web connect form opens on (see iss_launch.py for where these two
+    # combine into a single --advertise flag the way that form does) --
+    # "auto"/"2.0"/"auto" are real selectable values here, not a blank
+    # meaning "omit the flag".
     "host": "",
     "user": "",
-    "advertise": "",
-    "hidpi": "",
-    "decoder": "",
+    "advertise": "auto",
+    "hidpi": "2.0",
+    "decoder": "auto",
     # iss defaults both to on; False is the only state worth storing, since
     # it's the one that adds a flag (--no-audio/--no-curtain).
     "audio": True,

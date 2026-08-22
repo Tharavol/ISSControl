@@ -40,12 +40,19 @@ environment variable to the full path, or add it as `iss_path_override` in
   and streams that into the log pane too.
 - **Settings...** opens connection defaults for Start: host, user,
   resolution, display scale, decoder, audio, and curtain, which pre-fill
-  iss's browser connect form the same way passing them as CLI flags would
-  (`iss --host mac.local -u me --advertise 1920x1080 --no-curtain`). The
-  password field stores into Windows Credential Manager via `keyring`, not
+  iss's browser connect form the same way passing them as CLI flags would.
+  Resolution, display scale, and decoder are dropdowns with the same
+  options and defaults as that form itself (pulled from iShareScreen's own
+  `isharescreen.gui.connect` source, not reinvented) -- Resolution is the
+  encoded backing size (bandwidth), Display scale is how large the host
+  draws its UI on top of that, and the two combine into iss's `--advertise`
+  flag exactly the way the web form's own launch code does. The password
+  field stores into Windows Credential Manager via `keyring`, not
   settings.json -- iss has no `--password` flag on purpose, since anything
   on argv is visible in `ps` / Task Manager, so a stored password only ever
   reaches it piped to `--password-stdin`.
+
+  ![ISSControl settings dialog](docs/settings_screenshot.png)
 - Window position/size and the connection defaults above persist between
   sessions in a per-user `settings.json` (`%LOCALAPPDATA%\ISSControl` on
   Windows). `iss_path_override` and `iss_args` in that file don't have a

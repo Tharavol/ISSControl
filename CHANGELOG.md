@@ -13,7 +13,13 @@ All notable changes to this project are documented here. The format follows
   turns them into the same CLI flags iss's own browser connect form
   pre-fills from -- `iss --host mac.local -u me --advertise 1920x1080
   --no-curtain` -- plus whatever's in `iss_args` as an escape hatch for
-  anything not exposed by the dialog.
+  anything not exposed by the dialog. Resolution, display scale, and
+  decoder are dropdowns sourced directly from iShareScreen's own web
+  connect form (`isharescreen.gui.connect`) -- same options, same
+  defaults, and the same resolution-÷-scale-into-one---advertise-flag math,
+  so a choice here means the same thing it would in that form. vt-hevc444
+  is left off the decoder list on purpose: it's Darwin-only decode
+  hardware, and ISSControl only ever runs as the Windows-side viewer.
 - **Password stored in Windows Credential Manager, not settings.json**
   (#15). Filed as "discuss the approach" rather than a locked-in design;
   keyring + Credential Manager is what got picked, matching what the issue
@@ -37,6 +43,14 @@ All notable changes to this project are documented here. The format follows
   now catches a failed startup and shows it in a message box instead,
   naming the interpreter it ran under so the fix (installing into that
   specific Python) is obvious.
+- **Settings dialog dropdowns were unreadable -- white text on white.**
+  `theme.py` styled every other input widget but never `TCombobox`; clam's
+  readonly state in particular renders from its *select* colors rather than
+  `fieldbackground`/`foreground`, so a plain style pass would have left it
+  looking fine closed and still broken once opened. Both the closed field
+  and the popdown list (a plain Tk Listbox under a ttk combobox, styled
+  through the option database like Text/Menu already were) now follow the
+  rest of the dark theme.
 
 ## [1.0.0] - 2026-08-22
 

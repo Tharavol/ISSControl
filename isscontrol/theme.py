@@ -159,6 +159,13 @@ def apply(root: tk.Tk) -> ttk.Style:
     root.option_add("*Menu.foreground", FG)
     root.option_add("*Menu.activeBackground", ACCENT)
     root.option_add("*Menu.activeForeground", ACCENT_TEXT)
+    # A Combobox's popdown list is a plain Tk Listbox too, so it needs the
+    # same treatment -- without it, the dropdown itself stays light even
+    # once the closed field below is styled to match everything else.
+    root.option_add("*TCombobox*Listbox.background", BG_INPUT)
+    root.option_add("*TCombobox*Listbox.foreground", FG)
+    root.option_add("*TCombobox*Listbox.selectBackground", ACCENT)
+    root.option_add("*TCombobox*Listbox.selectForeground", ACCENT_TEXT)
 
     style.configure(".", background=BG, foreground=FG, font=FONT, borderwidth=0)
 
@@ -240,6 +247,33 @@ def apply(root: tk.Tk) -> ttk.Style:
         padding=6,
     )
     style.map("TEntry", bordercolor=[("focus", ACCENT)], lightcolor=[("focus", ACCENT)])
+
+    style.configure(
+        "TCombobox",
+        fieldbackground=BG_INPUT,
+        background=BG_RAISED,
+        foreground=FG,
+        arrowcolor=FG_MUTED,
+        bordercolor=BORDER,
+        lightcolor=BORDER,
+        darkcolor=BORDER,
+        borderwidth=1,
+        padding=6,
+    )
+    style.map(
+        "TCombobox",
+        # clam renders a readonly Combobox's field using the *select*
+        # colors, not fieldbackground/foreground -- without overriding
+        # these too, a readonly box stays the theme's stock light blue
+        # regardless of the colors set above.
+        fieldbackground=[("readonly", BG_INPUT)],
+        selectbackground=[("readonly", BG_INPUT)],
+        selectforeground=[("readonly", FG)],
+        foreground=[("disabled", FG_DIM)],
+        bordercolor=[("focus", ACCENT)],
+        lightcolor=[("focus", ACCENT)],
+        arrowcolor=[("active", FG)],
+    )
 
     # ---- Progress and separators -------------------------------------------
     style.configure(
