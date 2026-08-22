@@ -11,11 +11,13 @@ is behind the upstream repo.
 ## Status
 
 - **Working**: Start/Stop launch and cleanly terminate `iss` as a managed
-  subprocess, resolving its launcher even when it isn't on PATH. See
-  [CHANGELOG.md](CHANGELOG.md) for what shipped in each version.
-- **Not yet built**: install/update status (v0.3.0), settings persistence
-  and packaging (v1.0.0), default connection parameters and secure
-  password storage (v1.1.0).
+  subprocess, resolving its launcher even when it isn't on PATH. The
+  install-status card shows whether your local `iss` install is behind
+  upstream (by comparing its installed commit against upstream's current
+  HEAD) with a one-click Update button. See [CHANGELOG.md](CHANGELOG.md)
+  for what shipped in each version.
+- **Not yet built**: settings persistence and packaging (v1.0.0), default
+  connection parameters and secure password storage (v1.1.0).
 
 See the [issue tracker](https://github.com/Tharavol/ISSControl/issues) and
 [milestones](https://github.com/Tharavol/ISSControl/milestones) for details.

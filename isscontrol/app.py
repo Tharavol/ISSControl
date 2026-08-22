@@ -1,22 +1,33 @@
 """The main window.
 
 A process-status card, an install-status card, the Start/Stop pair, and a
-log pane. Start/Stop drive an IssProcess (#5, #6); a recurring poll loop
+log pane. Start/Stop drive a ManagedProcess (#5, #6); a recurring poll loop
 drains its output into the log and notices when it exits on its own --
 crashed, or closed from its own window -- so the UI never sits showing
 "Running" for a session that has already ended (#7).
+
+The install-status card runs an update check (#8, #9) in a background
+thread on startup -- it shells out to git, which can stall or hang -- and
+posts the result back through a queue the poll loop drains, since Tk is not
+thread-safe to touch directly from a worker. The Update button (#10) drives
+a second ManagedProcess running `pip install --upgrade`, polled the same
+way as iss's own process.
 """
 
 from __future__ import annotations
 
 import queue
 import re
+import threading
 import tkinter as tk
 from tkinter import messagebox, ttk
 
 from . import __version__, theme
+from .iss_install import NotInstalledError
 from .iss_locate import IssNotFoundError, find_iss
-from .iss_process import IssProcess
+from .iss_update import UpdateState, UpdateStatus, UpstreamCheckError, check_for_update
+from .iss_update import start_update as start_update_process
+from .managed_process import ManagedProcess
 
 # How often the poll loop drains iss's output and checks whether it's still
 # running. Frequent enough that the log feels live, cheap enough to leave
@@ -41,12 +52,16 @@ class App(ttk.Frame):
         self.root = root
         self.pack(fill="both", expand=True)
 
-        self._iss: IssProcess | None = None
+        self._iss: ManagedProcess | None = None
         self._was_running = False
         self._stopping = False
 
+        self._update_proc: ManagedProcess | None = None
+        self._update_results: queue.Queue[tuple[str, object]] = queue.Queue()
+
         self._build()
         self._poll_process()
+        self._check_for_update()
 
     # ---- Construction -------------------------------------------------------
 
@@ -93,11 +108,17 @@ class App(ttk.Frame):
         ttk.Label(install_card, text="iShareScreen install", style="CardHeading.TLabel").grid(
             row=0, column=0, sticky="w"
         )
-        # Real version/commit comparison against upstream lands in v0.3.0 (#8-#10).
         self._install_status = ttk.Label(
-            install_card, text="Update status not implemented yet", style="CardMuted.TLabel"
+            install_card, text="Checking...", style="CardMuted.TLabel"
         )
         self._install_status.grid(row=1, column=0, sticky="w", pady=(4, 0))
+        self._update_button = ttk.Button(
+            install_card,
+            text="Update",
+            command=self.update_iss,
+            state="disabled",
+        )
+        self._update_button.grid(row=1, column=1, sticky="e")
 
     def _build_actions(self) -> None:
         actions = ttk.Frame(self)
@@ -164,7 +185,7 @@ class App(ttk.Frame):
             return
 
         self._append_log("step", f"Starting {iss_path}")
-        self._iss = IssProcess(iss_path)
+        self._iss = ManagedProcess(iss_path)
         self._iss.start()
         self._was_running = True
         self._set_running_state(True, pid=self._iss.pid)
@@ -179,9 +200,53 @@ class App(ttk.Frame):
         # the process has actually exited, not here -- taskkill asks it to
         # die, it doesn't confirm it has.
 
+    # ---- Update ------------------------------------------------------------
+
+    def update_iss(self) -> None:
+        if self._update_proc is not None and self._update_proc.is_running():
+            return
+        try:
+            iss_path = find_iss()
+            self._update_proc = start_update_process(iss_path)
+        except (IssNotFoundError, NotInstalledError) as error:
+            self._append_log("error", str(error))
+            return
+        self._append_log("step", "Updating iShareScreen...")
+        self._update_button.configure(state="disabled")
+
+    def _check_for_update(self) -> None:
+        self._install_status.configure(text="Checking for updates...", style="CardMuted.TLabel")
+        threading.Thread(target=self._check_for_update_worker, daemon=True).start()
+
+    def _check_for_update_worker(self) -> None:
+        try:
+            iss_path = find_iss()
+            status = check_for_update(iss_path)
+        except (IssNotFoundError, NotInstalledError, UpstreamCheckError) as error:
+            self._update_results.put(("error", str(error)))
+            return
+        self._update_results.put(("status", status))
+
+    def _apply_update_status(self, status: UpdateStatus) -> None:
+        short = status.installed.commit[:7] if status.installed.commit else None
+        if status.state is UpdateState.UP_TO_DATE:
+            self._install_status.configure(text=f"Up to date ({short})", style="Ok.TLabel")
+            self._update_button.configure(state="disabled")
+        elif status.state is UpdateState.UPDATE_AVAILABLE:
+            self._install_status.configure(
+                text=f"Update available (installed {short})", style="Warn.TLabel"
+            )
+            self._update_button.configure(state="normal")
+        else:  # UNVERSIONED
+            self._install_status.configure(
+                text=f"Installed v{status.installed.version} (not a tracked git checkout)",
+                style="CardMuted.TLabel",
+            )
+            self._update_button.configure(state="disabled")
+
     def _poll_process(self) -> None:
         if self._iss is not None:
-            self._drain_output()
+            self._drain_output(self._iss)
             running = self._iss.is_running()
             if self._was_running and not running:
                 if self._stopping:
@@ -198,13 +263,37 @@ class App(ttk.Frame):
                 self._stopping = False
                 self._set_running_state(False)
             self._was_running = running
+
+        if self._update_proc is not None:
+            self._drain_output(self._update_proc)
+            if not self._update_proc.is_running():
+                code = self._update_proc.exit_code()
+                if code == 0:
+                    self._append_log("success", "Update complete.")
+                else:
+                    self._append_log("error", f"Update failed (exit code {code}).")
+                self._update_proc = None
+                self._check_for_update()
+
+        self._drain_update_results()
         self.after(POLL_INTERVAL_MS, self._poll_process)
 
-    def _drain_output(self) -> None:
-        assert self._iss is not None
+    def _drain_update_results(self) -> None:
         while True:
             try:
-                line = self._iss.output.get_nowait()
+                kind, payload = self._update_results.get_nowait()
+            except queue.Empty:
+                break
+            if kind == "status":
+                self._apply_update_status(payload)
+            else:
+                self._install_status.configure(text=payload, style="Warn.TLabel")
+                self._update_button.configure(state="disabled")
+
+    def _drain_output(self, proc: ManagedProcess) -> None:
+        while True:
+            try:
+                line = proc.output.get_nowait()
             except queue.Empty:
                 break
             self._append_log(_level_tag(line), line)
