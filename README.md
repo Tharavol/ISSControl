@@ -85,7 +85,7 @@ py -3.13 -m pip install -e .   # or whichever version `py -0p` marks as default
   status, a settings dialog for connection defaults with a Credential
   Manager-backed password, and a console-free launcher. See
   [CHANGELOG.md](CHANGELOG.md) for what shipped in each version.
-- All milestones through v1.1.0 are done; nothing further is currently planned.
+- All milestones through v1.1.1 are done; nothing further is currently planned.
 
 See the [issue tracker](https://github.com/Tharavol/ISSControl/issues) and
 [milestones](https://github.com/Tharavol/ISSControl/milestones) for details.

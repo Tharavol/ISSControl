@@ -3,6 +3,41 @@
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.1.1] - 2026-08-22
+
+### Fixed
+
+- **Double-clicking `isscontrol.pyw` could silently do nothing** (#16).
+  `keyring` becoming a real dependency in v1.1.0 exposed a gap the launcher
+  already had: with no shebang, Windows runs it under whichever Python the
+  `py` launcher defaults to, which is not necessarily the one ISSControl
+  and its dependencies are actually installed into (the same kind of
+  environment mismatch `iss_locate.py` works around for `iss` itself, just
+  now on ISSControl's own side) -- and under pythonw there's no console for
+  the resulting exception to print to, so it just vanished. The launcher
+  now catches a failed startup and shows it in a message box instead,
+  naming the interpreter it ran under so the fix (installing into that
+  specific Python) is obvious.
+- **Settings dialog's Resolution/Display scale/Decoder didn't actually
+  match iShareScreen's web connect form** (#17), despite pre-filling that
+  form being the whole point. Replaced the free-text fields with dropdowns
+  sourced directly from the web form's own option lists, labels, and
+  defaults (`isharescreen.gui.connect._FORM` / `_DECODER_LABELS`), and
+  `iss_launch.build_args()` now reproduces that form's
+  resolution-÷-scale-into-one---advertise-flag math instead of passing
+  Resolution straight through -- the two aren't independent flags in
+  practice. vt-hevc444 is left off the decoder list on purpose: it's
+  Darwin-only decode hardware, and ISSControl only ever runs as the
+  Windows-side viewer.
+- **Settings dialog dropdowns were unreadable -- white text on white**
+  (found while fixing #17). `theme.py` styled every other input widget but
+  never `TCombobox`; clam's readonly state in particular renders from its
+  *select* colors rather than `fieldbackground`/`foreground`, so a plain
+  style pass would have left it looking fine closed and still broken once
+  opened. Both the closed field and the popdown list (a plain Tk Listbox
+  under a ttk combobox, styled through the option database like Text/Menu
+  already were) now follow the rest of the dark theme.
+
 ## [1.1.0] - 2026-08-22
 
 ### Added
@@ -13,13 +48,7 @@ All notable changes to this project are documented here. The format follows
   turns them into the same CLI flags iss's own browser connect form
   pre-fills from -- `iss --host mac.local -u me --advertise 1920x1080
   --no-curtain` -- plus whatever's in `iss_args` as an escape hatch for
-  anything not exposed by the dialog. Resolution, display scale, and
-  decoder are dropdowns sourced directly from iShareScreen's own web
-  connect form (`isharescreen.gui.connect`) -- same options, same
-  defaults, and the same resolution-÷-scale-into-one---advertise-flag math,
-  so a choice here means the same thing it would in that form. vt-hevc444
-  is left off the decoder list on purpose: it's Darwin-only decode
-  hardware, and ISSControl only ever runs as the Windows-side viewer.
+  anything not exposed by the dialog.
 - **Password stored in Windows Credential Manager, not settings.json**
   (#15). Filed as "discuss the approach" rather than a locked-in design;
   keyring + Credential Manager is what got picked, matching what the issue
@@ -29,28 +58,6 @@ All notable changes to this project are documented here. The format follows
   reaches iss over `--password-stdin`, piped through `ManagedProcess`'s new
   `stdin_data` parameter rather than ever touching argv or disk in
   plaintext.
-
-### Fixed
-
-- **Double-clicking `isscontrol.pyw` could silently do nothing.** `keyring`
-  becoming a real dependency this release exposed a gap the launcher
-  already had: with no shebang, Windows runs it under whichever Python the
-  `py` launcher defaults to, which is not necessarily the one ISSControl
-  and its dependencies are actually installed into (the same kind of
-  environment mismatch `iss_locate.py` works around for `iss` itself, just
-  now on ISSControl's own side) -- and under pythonw there's no console for
-  the resulting exception to print to, so it just vanished. The launcher
-  now catches a failed startup and shows it in a message box instead,
-  naming the interpreter it ran under so the fix (installing into that
-  specific Python) is obvious.
-- **Settings dialog dropdowns were unreadable -- white text on white.**
-  `theme.py` styled every other input widget but never `TCombobox`; clam's
-  readonly state in particular renders from its *select* colors rather than
-  `fieldbackground`/`foreground`, so a plain style pass would have left it
-  looking fine closed and still broken once opened. Both the closed field
-  and the popdown list (a plain Tk Listbox under a ttk combobox, styled
-  through the option database like Text/Menu already were) now follow the
-  rest of the dark theme.
 
 ## [1.0.0] - 2026-08-22
 
