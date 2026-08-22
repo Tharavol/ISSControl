@@ -24,6 +24,20 @@ All notable changes to this project are documented here. The format follows
   `stdin_data` parameter rather than ever touching argv or disk in
   plaintext.
 
+### Fixed
+
+- **Double-clicking `isscontrol.pyw` could silently do nothing.** `keyring`
+  becoming a real dependency this release exposed a gap the launcher
+  already had: with no shebang, Windows runs it under whichever Python the
+  `py` launcher defaults to, which is not necessarily the one ISSControl
+  and its dependencies are actually installed into (the same kind of
+  environment mismatch `iss_locate.py` works around for `iss` itself, just
+  now on ISSControl's own side) -- and under pythonw there's no console for
+  the resulting exception to print to, so it just vanished. The launcher
+  now catches a failed startup and shows it in a message box instead,
+  naming the interpreter it ran under so the fix (installing into that
+  specific Python) is obvious.
+
 ## [1.0.0] - 2026-08-22
 
 ### Added

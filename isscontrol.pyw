@@ -13,13 +13,41 @@ project on Windows 11: no shebang runs pythonw.exe with no console; `python3`
 runs python.exe with a conhost window; `pythonw` fails to start anything at
 all.)
 
-Nothing but the launch lives here, so running this or `python -m isscontrol`
-behaves identically. That does mean anything this program would have
-printed, tracebacks included, goes nowhere: run `python -m isscontrol` from
-a terminal to diagnose a window that will not open.
+No shebang also means Windows picks the interpreter on its own -- the `py`
+launcher's registered default, which is not necessarily the one `pip install
+-e .` was run under (a machine with several Pythons installed can easily have
+ISSControl's dependencies in one and the .pyw default pointing at another;
+this is the same environment-mismatch problem iss_locate.py works around for
+`iss` itself, just on ISSControl's own side this time). Under a normal
+console that would at least show a traceback; under pythonw it wouldn't --
+the exception has nowhere to print to, so the double-click would just
+silently do nothing. The try/except below exists solely so that failure
+mode surfaces as a message box instead of vanishing.
 """
 
-from isscontrol.app import run
+import sys
+import tkinter as tk
+from tkinter import messagebox
+
+
+def _show_startup_error(error: BaseException) -> None:
+    root = tk.Tk()
+    root.withdraw()
+    messagebox.showerror(
+        "ISSControl failed to start",
+        f"{type(error).__name__}: {error}\n\n"
+        f"Running under: {sys.executable}\n\n"
+        "If this looks like a missing dependency, that Python isn't the one "
+        "ISSControl was installed into. Install it there with:\n\n"
+        f'"{sys.executable}" -m pip install -e .',
+    )
+
 
 if __name__ == "__main__":
+    try:
+        from isscontrol.app import run
+    except Exception as error:
+        _show_startup_error(error)
+        raise SystemExit(1) from error
+
     run()
