@@ -1,0 +1,50 @@
+[project]
+name = "isscontrol"
+version = "0.1.0"
+description = "Start/stop control panel and update-status front end for iShareScreen"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "GPL-3.0-or-later"
+license-files = ["LICENSE"]
+authors = [
+    { name = "Tharavol", email = "307232816+Tharavol@users.noreply.github.com" },
+    { name = "Claude (Anthropic)", email = "noreply@anthropic.com" },
+]
+keywords = ["isharescreen", "screen-sharing", "control-panel", "gui"]
+classifiers = [
+    "Environment :: Win32 (MS Windows)",
+    "Intended Audience :: End Users/Desktop",
+    "Operating System :: Microsoft :: Windows",
+    "Programming Language :: Python :: 3",
+    "Topic :: Desktop Environment",
+]
+dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/Tharavol/ISSControl"
+Issues = "https://github.com/Tharavol/ISSControl/issues"
+
+[project.scripts]
+isscontrol = "isscontrol.app:run"
+
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["isscontrol"]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0", "ruff>=0.16"]
+
+[tool.ruff]
+line-length = 95
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
+ignore = [
+    # The formatter owns line length; the linter flagging it as well just
+    # produces warnings for lines it is about to rewrite anyway.
+    "E501",
+]

@@ -1,0 +1,16 @@
+ISSControl was written by:
+
+    Tharavol
+        Design direction, requirements, and testing against a live install.
+
+    Claude (Anthropic)
+        Implementation: Tk interface, iShareScreen process control, and
+        update-status checks. Individual contributions are recorded as
+        Co-Authored-By trailers in the git history.
+
+Copyright (C) 2026 Tharavol and Claude (Anthropic)
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version. See LICENSE for the full text.

@@ -1,0 +1,18 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Local runtime artifacts (real ones live in %LOCALAPPDATA%\ISSControl)
+config.json
+settings.json
+logs/
+*.log
+
+# Build output
+build/
+dist/
