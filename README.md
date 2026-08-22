@@ -10,9 +10,24 @@ is behind the upstream repo.
 
 ## Status
 
-Early development — see the [issue tracker](https://github.com/Tharavol/ISSControl/issues)
-and [milestones](https://github.com/Tharavol/ISSControl/milestones) for what's
-built and what's planned. Full usage docs land with the v1.0.0 milestone.
+- **Working**: Start/Stop launch and cleanly terminate `iss` as a managed
+  subprocess, resolving its launcher even when it isn't on PATH. See
+  [CHANGELOG.md](CHANGELOG.md) for what shipped in each version.
+- **Not yet built**: install/update status (v0.3.0), settings persistence
+  and packaging (v1.0.0), default connection parameters and secure
+  password storage (v1.1.0).
+
+See the [issue tracker](https://github.com/Tharavol/ISSControl/issues) and
+[milestones](https://github.com/Tharavol/ISSControl/milestones) for details.
+Full usage docs (with a screenshot) land with the v1.0.0 milestone.
+
+## Running it
+
+```sh
+pip install -e .
+isscontrol
+# or: python -m isscontrol
+```
 
 ## License
 
