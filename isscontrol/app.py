@@ -30,6 +30,7 @@ import queue
 import re
 import threading
 import tkinter as tk
+import webbrowser
 from pathlib import Path
 from tkinter import messagebox, ttk
 
@@ -41,7 +42,7 @@ from .iss_update import UpdateState, UpdateStatus, UpstreamCheckError, check_for
 from .iss_update import start_update as start_update_process
 from .managed_process import ManagedProcess
 from .settings import load_settings, save_settings
-from .settings_dialog import edit_settings
+from .settings_dialog import describe_connection, edit_settings
 
 _GEOMETRY_RE = re.compile(r"^(\d+)x(\d+)([+-]\d+)([+-]\d+)$")
 
@@ -55,6 +56,13 @@ POLL_INTERVAL_MS = 400
 # in its output stand out in the log pane instead of reading as plain text.
 _LEVEL_RE = re.compile(r"^\S+\s+(DEBUG|INFO|WARNING|ERROR|CRITICAL)\s+\S+\s+\|")
 _LEVEL_TAGS = {"WARNING": "warning", "ERROR": "error", "CRITICAL": "error"}
+
+# What iss's browser frontend (frontend/wt/server.py) logs once its bridge
+# is up -- it never opens a tab itself, only this line naming the URL to
+# open by hand (see #18). Matched against the raw line, before _level_tag
+# strips anything, since the URL comes after iss's own "<ts> <LEVEL> <logger>
+# |" prefix.
+_BROWSER_URL_RE = re.compile(r"open this URL[^:]*:\s*(\S+)")
 
 
 def _level_tag(line: str) -> str:
@@ -72,6 +80,7 @@ class App(ttk.Frame):
         self._iss: ManagedProcess | None = None
         self._was_running = False
         self._stopping = False
+        self._browser_url: str | None = None
 
         self._update_proc: ManagedProcess | None = None
         self._update_results: queue.Queue[tuple[str, object]] = queue.Queue()
@@ -119,6 +128,19 @@ class App(ttk.Frame):
         )
         self._process_status.grid(row=1, column=0, sticky="w", pady=(4, 0))
 
+        # Only shown for the "browser" frontend, once iss has actually
+        # logged its connect URL -- that frontend never opens a tab itself
+        # (see #18), so this is the only way to reach it short of the log
+        # pane.
+        self._browser_link = ttk.Button(
+            process_card,
+            style="Link.TButton",
+            cursor="hand2",
+            command=self._open_browser_url,
+        )
+        self._browser_link.grid(row=2, column=0, sticky="w", pady=(4, 0))
+        self._browser_link.grid_remove()
+
         install_card = ttk.Frame(panel, style="Card.TFrame", padding=12)
         install_card.grid(row=1, column=0, sticky="ew")
         install_card.columnconfigure(0, weight=1)
@@ -136,6 +158,25 @@ class App(ttk.Frame):
             state="disabled",
         )
         self._update_button.grid(row=1, column=1, sticky="e")
+
+        defaults_card = ttk.Frame(panel, style="Card.TFrame", padding=12)
+        defaults_card.grid(row=2, column=0, sticky="ew", pady=(8, 0))
+        defaults_card.columnconfigure(0, weight=1)
+        ttk.Label(
+            defaults_card, text="Connection defaults", style="CardHeading.TLabel"
+        ).grid(row=0, column=0, sticky="w")
+        self._defaults_summary = ttk.Label(
+            defaults_card, text="", style="CardMuted.TLabel", justify="left"
+        )
+        self._defaults_summary.grid(row=1, column=0, sticky="w", pady=(4, 0))
+        # Wrap to the card's actual width rather than a fixed guess -- an
+        # unusually long host/user/decoder value, or the window being
+        # resized, must not silently clip text past the right edge.
+        defaults_card.bind(
+            "<Configure>",
+            lambda event: self._defaults_summary.configure(wraplength=max(event.width - 4, 100)),
+        )
+        self._refresh_defaults_summary()
 
     def _build_actions(self) -> None:
         actions = ttk.Frame(self)
@@ -197,6 +238,10 @@ class App(ttk.Frame):
         updated = edit_settings(self.root, self._settings)
         if updated is not None:
             self._settings = updated
+            self._refresh_defaults_summary()
+
+    def _refresh_defaults_summary(self) -> None:
+        self._defaults_summary.configure(text=describe_connection(self._settings))
 
     # ---- Process control --------------------------------------------------
 
@@ -218,6 +263,8 @@ class App(ttk.Frame):
         self._iss = ManagedProcess(iss_path, args, stdin_data=stdin_data)
         self._iss.start()
         self._was_running = True
+        self._browser_url = None
+        self._browser_link.grid_remove()
         self._set_running_state(True, pid=self._iss.pid)
 
     def stop_iss(self) -> None:
@@ -291,6 +338,8 @@ class App(ttk.Frame):
                         f"iss exited on its own (code {code})." if code else "iss exited.",
                     )
                 self._stopping = False
+                self._browser_url = None
+                self._browser_link.grid_remove()
                 self._set_running_state(False)
             self._was_running = running
 
@@ -327,6 +376,19 @@ class App(ttk.Frame):
             except queue.Empty:
                 break
             self._append_log(_level_tag(line), line)
+            if proc is self._iss and self._browser_url is None:
+                match = _BROWSER_URL_RE.search(line)
+                if match:
+                    self._show_browser_link(match.group(1))
+
+    def _show_browser_link(self, url: str) -> None:
+        self._browser_url = url
+        self._browser_link.configure(text=f"Open {url} ↗")
+        self._browser_link.grid()
+
+    def _open_browser_url(self) -> None:
+        if self._browser_url:
+            webbrowser.open(self._browser_url)
 
     def _set_running_state(self, running: bool, pid: int | None = None) -> None:
         if running:
@@ -390,11 +452,18 @@ def run() -> int:
     theme.apply_dark_title_bar(root)
     theme.apply_icon(root)
 
-    App(root, settings)
+    app = App(root, settings)
 
     def _on_close() -> None:
-        _save_window_geometry(root, settings)
-        save_settings(settings)
+        # Not the *settings* dict load_settings() returned above -- once
+        # Settings has been opened and saved, app._settings points at a new
+        # dict (open_settings() reassigns it rather than mutating this one
+        # in place), and that's the copy with whatever was actually changed
+        # this session. Saving the stale original here silently reverted
+        # every field the Settings dialog itself had already written to
+        # disk, the moment the window closed.
+        _save_window_geometry(root, app._settings)
+        save_settings(app._settings)
         root.destroy()
 
     root.protocol("WM_DELETE_WINDOW", _on_close)

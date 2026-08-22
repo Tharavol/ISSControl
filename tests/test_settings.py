@@ -42,6 +42,7 @@ class TestLoadSettings:
             "iss_args": ["--extra-flag"],
             "host": "mac.local",
             "user": "me",
+            "frontend": "browser",
             "advertise": "1920x1080",
             "hidpi": "on",
             "decoder": "vt-hevc444",
@@ -51,6 +52,15 @@ class TestLoadSettings:
         _isolated_settings_path.write_text(json.dumps(saved), encoding="utf-8")
 
         assert load_settings() == saved
+
+    def test_unrecognized_frontend_falls_back_to_default(
+        self, _isolated_settings_path: Path
+    ) -> None:
+        _isolated_settings_path.write_text(
+            json.dumps({"frontend": "not-a-real-frontend"}), encoding="utf-8"
+        )
+
+        assert load_settings()["frontend"] == DEFAULT_SETTINGS["frontend"]
 
     def test_window_width_below_minimum_is_clamped(self, _isolated_settings_path: Path) -> None:
         _isolated_settings_path.write_text(

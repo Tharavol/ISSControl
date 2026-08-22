@@ -65,6 +65,12 @@ DEFAULT_SETTINGS = {
     # meaning "omit the flag".
     "host": "",
     "user": "",
+    # "desktop" opens iss's native wgpu window(s) automatically; "browser"
+    # is iss's own default (a WebTransport bridge iss only ever logs a URL
+    # for -- it never opens a tab itself, see #18). ISSControl defaults to
+    # "desktop" so Start always produces a visible window without a manual
+    # step.
+    "frontend": "desktop",
     "advertise": "auto",
     "hidpi": "2.0",
     "decoder": "auto",
@@ -78,6 +84,11 @@ DEFAULT_SETTINGS = {
 # capped at MAX_FIELD_LEN -- short values, but a hand-edited file must not
 # be able to put a novel in any of them.
 _STRING_FIELDS = ("host", "user", "advertise", "hidpi", "decoder")
+
+# frontend is validated against this set rather than treated as free text --
+# an unrecognized value would become an unrecognized --frontend flag for iss
+# to reject, not a graceful fallback the way a bad "advertise" string is.
+_FRONTEND_VALUES = ("desktop", "browser")
 
 
 def app_data_dir() -> Path:
@@ -137,6 +148,9 @@ def load_settings() -> dict:
         value = saved.get(field)
         if isinstance(value, str):
             settings[field] = value[:MAX_FIELD_LEN]
+
+    if saved.get("frontend") in _FRONTEND_VALUES:
+        settings["frontend"] = saved["frontend"]
 
     for flag in ("audio", "curtain"):
         if isinstance(saved.get(flag), bool):

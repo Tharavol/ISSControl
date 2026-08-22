@@ -66,6 +66,54 @@ DECODER_OPTIONS = [
     ("H.264", "libav-avc420"),
 ]
 
+# iss's own default is "browser" -- ISSControl defaults to "desktop" instead
+# since it opens a real window on its own, rather than iss just logging a
+# URL that has to be opened by hand (see #18).
+FRONTEND_OPTIONS = [
+    ("Native window (opens automatically)", "desktop"),
+    ("Browser tab (Start shows a link to open)", "browser"),
+]
+
+
+# Short forms for the main window's summary card -- deliberately not the
+# same strings as the dropdowns above, which spell things out for someone
+# picking a value for the first time ("200% -- Retina (normal UI, crisp)").
+# On the card that explanatory text just crowds out the numbers that
+# actually change per-connection, so this renders the compact form instead.
+_FRONTEND_SHORT = {"desktop": "Native window", "browser": "Browser tab"}
+
+
+def _scale_label(value: str) -> str:
+    try:
+        return f"{float(value) * 100:.0f}%"
+    except ValueError:
+        return value
+
+
+def describe_connection(settings: dict) -> str:
+    """A one-glance summary of the connection defaults Start will use, for
+    the main window so they're visible without opening Settings. Never
+    includes the password (#15's whole point was keeping it out of anything
+    that isn't Credential Manager)."""
+    host = settings.get("host") or "(not set)"
+    user = settings.get("user") or "(not set)"
+    frontend = _FRONTEND_SHORT.get(settings.get("frontend", "desktop"), "Native window")
+
+    advertise = (settings.get("advertise") or "auto").strip() or "auto"
+    resolution = "Auto" if advertise.lower() == "auto" else advertise
+    scale = _scale_label((settings.get("hidpi") or "2.0").strip() or "2.0")
+
+    decoder = (settings.get("decoder") or "auto").strip() or "auto"
+    decoder_label = "Auto" if decoder.lower() == "auto" else decoder
+
+    audio = "on" if settings.get("audio", True) else "off"
+    curtain = "on" if settings.get("curtain", True) else "off"
+
+    return (
+        f"{host}  ·  {user}  ·  {frontend}\n"
+        f"{resolution}  ·  {scale}  ·  {decoder_label}  ·  audio {audio}  ·  curtain {curtain}"
+    )
+
 
 class SettingsDialog(tk.Toplevel):
     """Modal editor for the connection defaults. Returns the new settings dict, or None."""
@@ -83,6 +131,7 @@ class SettingsDialog(tk.Toplevel):
         self._host = tk.StringVar(value=settings.get("host", ""))
         self._user = tk.StringVar(value=settings.get("user", ""))
         self._password = tk.StringVar(value="")
+        self._frontend = tk.StringVar(value=settings.get("frontend", "desktop"))
         self._advertise = tk.StringVar(value=settings.get("advertise", "auto"))
         self._hidpi = tk.StringVar(value=settings.get("hidpi", "2.0"))
         self._decoder = tk.StringVar(value=settings.get("decoder", "auto"))
@@ -111,8 +160,7 @@ class SettingsDialog(tk.Toplevel):
         row += 1
         ttk.Label(
             outer,
-            text="Pre-fills iss's browser connect form on Start -- the password too,\n"
-            "if one is stored below.",
+            text="Applied to iss on Start -- the password too, if one is stored below.",
             style="Muted.TLabel",
             justify="left",
         ).grid(row=row, column=0, columnspan=2, sticky="w", pady=(2, 14))
@@ -123,6 +171,16 @@ class SettingsDialog(tk.Toplevel):
             outer, row, "User", self._user, "macOS account", track_password=True
         )
         row = self._build_password_row(outer, row)
+        row = self._combo_row(
+            outer,
+            row,
+            "Frontend",
+            self._frontend,
+            FRONTEND_OPTIONS,
+            "Native opens iss's own window(s) as soon as it connects. Browser\n"
+            "leaves opening the tab to you -- the main window shows a link\n"
+            "once iss logs the URL.",
+        )
         row = self._combo_row(
             outer,
             row,
@@ -285,6 +343,7 @@ class SettingsDialog(tk.Toplevel):
             **self._settings,
             "host": host,
             "user": user,
+            "frontend": self._frontend.get(),
             "advertise": self._advertise.get(),
             "hidpi": self._hidpi.get(),
             "decoder": self._decoder.get(),

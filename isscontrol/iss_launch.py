@@ -45,6 +45,13 @@ def build_args(settings: dict) -> tuple[list[str], str | None]:
     if user:
         args += ["-u", user]
 
+    # iss's own default is "browser", which never opens a tab itself -- it
+    # only logs the connect URL (see #18). ISSControl's default is
+    # "desktop" instead, so this is always passed explicitly rather than
+    # omitted the way decoder="auto" is.
+    frontend = (settings.get("frontend") or "desktop").strip() or "desktop"
+    args += ["--frontend", frontend]
+
     args += _resolution_args(settings)
 
     decoder = (settings.get("decoder") or "auto").strip()

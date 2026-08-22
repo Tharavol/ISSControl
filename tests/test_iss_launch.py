@@ -16,7 +16,7 @@ class TestBuildArgs:
     def test_defaults_send_hidpi_for_auto_resolution(self) -> None:
         args, stdin_data = build_args(dict(DEFAULT_SETTINGS))
 
-        assert args == ["--hidpi", "2.0"]
+        assert args == ["--frontend", "desktop", "--hidpi", "2.0"]
         assert stdin_data is None
 
     def test_host_and_user_become_flags(self) -> None:
@@ -26,12 +26,24 @@ class TestBuildArgs:
 
         assert args[:4] == ["--host", "mac.local", "-u", "me"]
 
+    def test_frontend_defaults_to_desktop(self) -> None:
+        args, _ = build_args(dict(DEFAULT_SETTINGS))
+
+        assert args[:2] == ["--frontend", "desktop"]
+
+    def test_frontend_browser_is_passed_through(self) -> None:
+        settings = {**DEFAULT_SETTINGS, "frontend": "browser"}
+
+        args, _ = build_args(settings)
+
+        assert args[:2] == ["--frontend", "browser"]
+
     def test_auto_resolution_sends_hidpi_with_chosen_scale(self) -> None:
         settings = {**DEFAULT_SETTINGS, "advertise": "auto", "hidpi": "3.0"}
 
         args, _ = build_args(settings)
 
-        assert args == ["--hidpi", "3.0"]
+        assert args == ["--frontend", "desktop", "--hidpi", "3.0"]
         assert "--advertise" not in args
 
     def test_explicit_resolution_divides_by_scale_into_advertise(self) -> None:
@@ -51,7 +63,7 @@ class TestBuildArgs:
 
         args, _ = build_args(settings)
 
-        assert args == ["--advertise", "not-a-resolution"]
+        assert args == ["--frontend", "desktop", "--advertise", "not-a-resolution"]
 
     def test_decoder_auto_is_omitted(self) -> None:
         settings = {**DEFAULT_SETTINGS, "decoder": "auto"}

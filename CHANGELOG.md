@@ -3,6 +3,41 @@
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.2.0] - 2026-08-22
+
+### Added
+
+- **Frontend setting: native window vs. browser tab** (#18). iss's own
+  default frontend is the WebTransport "browser" bridge, and it never opens
+  a tab itself -- confirmed against iShareScreen's own source
+  (`frontend/wt/server.py`), it only logs a connect URL, so Start produced
+  log output and nothing visible. ISSControl now defaults to iss's other
+  frontend, `--frontend desktop` (native wgpu window(s), opened
+  automatically), with Browser tab available in the Settings dialog for
+  anyone who wants it -- in which case the main window shows a clickable
+  link once iss actually logs the URL, since that frontend still gives no
+  window of its own.
+- **Connection defaults summary on the main window** (#19). Host, user,
+  frontend, resolution, display scale, decoder, audio, and curtain were
+  only visible by opening Settings. A "Connection defaults" card now shows
+  all of it (never the password) below the install-status card, in the
+  same wording the Settings dialog's own dropdowns use, and wraps to the
+  card's actual width rather than clipping at the window edge.
+
+### Fixed
+
+- **Settings dialog changes reverted to defaults the next time the app
+  launched** (#20), for every field except host/user, which is what made
+  it easy to miss. `run()` discarded the `App(root, settings)` return
+  value, and `_on_close()`'s closure kept the original `settings` dict from
+  `load_settings()` -- `SettingsDialog._save()` writes the new values to
+  disk immediately, but `App.open_settings()` reassigns `self._settings` to
+  a *new* dict rather than mutating that original one in place, so the
+  stale closure never saw what had actually changed. Every window close
+  then re-saved that stale snapshot over whatever Settings had just
+  written, silently reverting the session's changes. `_on_close()` now
+  saves `app._settings` instead.
+
 ## [1.1.1] - 2026-08-22
 
 ### Fixed
