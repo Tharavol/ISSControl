@@ -3,6 +3,28 @@
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.3.0] - 2026-08-22
+
+### Added
+
+- **Standalone `ISSControl.exe`, built and released automatically on tag
+  push** (#21). PyInstaller was picked over Nuitka/cx_Freeze for this app:
+  mature, wide Tk compatibility, and a light Tk + keyring GUI is exactly
+  where PyInstaller's faster/simpler build outweighs Nuitka's
+  smaller/faster-starting binary. `ISSControl.spec` builds a onefile,
+  windowed exe from `isscontrol.pyw` rather than the package's own
+  `__main__.py` -- the former's absolute import and its existing
+  try/except-then-messagebox startup-error handling both freeze cleanly,
+  where the latter's relative import assumes a package context the frozen
+  entry script doesn't have. Verified locally before wiring this into CI:
+  the frozen build renders correctly, and -- the one real risk with
+  PyInstaller + `keyring`, which discovers its backend via package
+  metadata that freezing can break -- a set/get/delete round trip against
+  Windows Credential Manager works in a frozen build with no extra
+  hidden-import wiring needed.
+  `.github/workflows/release.yml` runs the test suite, builds the exe, and
+  attaches it to a GitHub Release for the pushed tag.
+
 ## [1.2.0] - 2026-08-22
 
 ### Added

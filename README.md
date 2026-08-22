@@ -61,6 +61,12 @@ environment variable to the full path, or add it as `iss_path_override` in
 
 ## Running it
 
+The [Releases page](https://github.com/Tharavol/ISSControl/releases) has a
+standalone `ISSControl.exe` for each tagged version -- no Python install
+needed, just download and run it (it's still just a start/stop controller
+for `iss`, which has to be `pip install`ed separately regardless -- see
+above). Otherwise, from source:
+
 ```sh
 pip install -e .
 isscontrol
@@ -79,13 +85,24 @@ dependencies into that same interpreter, e.g.:
 py -3.13 -m pip install -e .   # or whichever version `py -0p` marks as default
 ```
 
+## Releasing
+
+Pushing a `vX.Y.Z` tag runs [.github/workflows/release.yml](.github/workflows/release.yml):
+tests, then a `pyinstaller ISSControl.spec` build (a windowed onefile
+`ISSControl.exe`, matching `isscontrol.pyw`'s no-console behavior --
+see the spec file for why it points there rather than the package's own
+`__main__.py`), then attaches the exe to a GitHub Release for that tag.
+To build the same thing locally: `pip install -e ".[build]"` then
+`pyinstaller ISSControl.spec`.
+
 ## Status
 
 - **Working**: Start/Stop/Update as a managed subprocess, install-vs-upstream
   status, a settings dialog for connection defaults with a Credential
-  Manager-backed password, and a console-free launcher. See
+  Manager-backed password, a console-free launcher, and a standalone
+  `ISSControl.exe` built and released automatically on each tag. See
   [CHANGELOG.md](CHANGELOG.md) for what shipped in each version.
-- All milestones through v1.1.1 are done; nothing further is currently planned.
+- All milestones through v1.2.0 are done; nothing further is currently planned.
 
 See the [issue tracker](https://github.com/Tharavol/ISSControl/issues) and
 [milestones](https://github.com/Tharavol/ISSControl/milestones) for details.
