@@ -1,18 +1,38 @@
 """The main window.
 
-Layout only for now: a process-status card, an install-status card, the
-Start/Stop pair, and a log pane. Nothing here talks to `iss` yet -- that
-starts with the executable lookup (#4) and the Start/Stop wiring (#5, #6).
-Both buttons are wired to placeholder handlers that just log a line, so the
-window is runnable and the wiring point for the real logic is obvious.
+A process-status card, an install-status card, the Start/Stop pair, and a
+log pane. Start/Stop drive an IssProcess (#5, #6); a recurring poll loop
+drains its output into the log and notices when it exits on its own --
+crashed, or closed from its own window -- so the UI never sits showing
+"Running" for a session that has already ended (#7).
 """
 
 from __future__ import annotations
 
+import queue
+import re
 import tkinter as tk
-from tkinter import ttk
+from tkinter import messagebox, ttk
 
 from . import __version__, theme
+from .iss_locate import IssNotFoundError, find_iss
+from .iss_process import IssProcess
+
+# How often the poll loop drains iss's output and checks whether it's still
+# running. Frequent enough that the log feels live, cheap enough to leave
+# running for the lifetime of the window.
+POLL_INTERVAL_MS = 400
+
+# iss's own log formatter is "<timestamp> <LEVELNAME> <logger> | <message>"
+# (see isharescreen.cli._setup_logging) -- matching it lets warnings/errors
+# in its output stand out in the log pane instead of reading as plain text.
+_LEVEL_RE = re.compile(r"^\S+\s+(DEBUG|INFO|WARNING|ERROR|CRITICAL)\s+\S+\s+\|")
+_LEVEL_TAGS = {"WARNING": "warning", "ERROR": "error", "CRITICAL": "error"}
+
+
+def _level_tag(line: str) -> str:
+    match = _LEVEL_RE.match(line)
+    return _LEVEL_TAGS.get(match.group(1), "info") if match else "info"
 
 
 class App(ttk.Frame):
@@ -21,7 +41,12 @@ class App(ttk.Frame):
         self.root = root
         self.pack(fill="both", expand=True)
 
+        self._iss: IssProcess | None = None
+        self._was_running = False
+        self._stopping = False
+
         self._build()
+        self._poll_process()
 
     # ---- Construction -------------------------------------------------------
 
@@ -124,16 +149,75 @@ class App(ttk.Frame):
         for level, color in theme.LOG_COLORS.items():
             self._log.tag_configure(level, foreground=color)
 
-        self._append_log("muted", "Ready. Start/Stop aren't wired up yet (see issue #5, #6).")
+        self._append_log("muted", "Ready.")
 
-    # ---- Placeholder actions --------------------------------------------------
-    # Replaced by real subprocess management in v0.2.0 (#5, #6).
+    # ---- Process control --------------------------------------------------
 
     def start_iss(self) -> None:
-        self._append_log("warning", "Start isn't implemented yet -- see issue #5.")
+        if self._iss is not None and self._iss.is_running():
+            return
+        try:
+            iss_path = find_iss()
+        except IssNotFoundError as error:
+            self._append_log("error", str(error))
+            messagebox.showerror("Can't find iss", str(error), parent=self.root)
+            return
+
+        self._append_log("step", f"Starting {iss_path}")
+        self._iss = IssProcess(iss_path)
+        self._iss.start()
+        self._was_running = True
+        self._set_running_state(True, pid=self._iss.pid)
 
     def stop_iss(self) -> None:
-        self._append_log("warning", "Stop isn't implemented yet -- see issue #6.")
+        if self._iss is None or not self._iss.is_running():
+            return
+        self._append_log("step", "Stopping iss...")
+        self._stopping = True
+        self._iss.stop()
+        # The button/status state resets once the poll loop below observes
+        # the process has actually exited, not here -- taskkill asks it to
+        # die, it doesn't confirm it has.
+
+    def _poll_process(self) -> None:
+        if self._iss is not None:
+            self._drain_output()
+            running = self._iss.is_running()
+            if self._was_running and not running:
+                if self._stopping:
+                    # A forced kill always reports a nonzero exit code, so
+                    # that alone can't distinguish "we stopped it" (expected)
+                    # from "it died" (worth a warning) -- the flag does.
+                    self._append_log("success", "iss stopped.")
+                else:
+                    code = self._iss.exit_code()
+                    self._append_log(
+                        "info" if not code else "warning",
+                        f"iss exited on its own (code {code})." if code else "iss exited.",
+                    )
+                self._stopping = False
+                self._set_running_state(False)
+            self._was_running = running
+        self.after(POLL_INTERVAL_MS, self._poll_process)
+
+    def _drain_output(self) -> None:
+        assert self._iss is not None
+        while True:
+            try:
+                line = self._iss.output.get_nowait()
+            except queue.Empty:
+                break
+            self._append_log(_level_tag(line), line)
+
+    def _set_running_state(self, running: bool, pid: int | None = None) -> None:
+        if running:
+            self._process_status.configure(text=f"Running (PID {pid})", style="Ok.TLabel")
+            self._start_button.configure(state="disabled")
+            self._stop_button.configure(state="normal")
+        else:
+            self._process_status.configure(text="Not running", style="CardMuted.TLabel")
+            self._start_button.configure(state="normal")
+            self._stop_button.configure(state="disabled")
 
     # ---- Log ------------------------------------------------------------------
 
