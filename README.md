@@ -61,7 +61,16 @@ isscontrol
 ```
 
 On Windows, double-clicking `isscontrol.pyw` runs the same app without a
-console window flashing up behind it.
+console window flashing up behind it. It has no shebang, so Windows opens
+it with whichever Python the `py` launcher defaults to -- if that isn't
+the interpreter you ran `pip install -e .` under (common with more than
+one Python installed), the double-click will fail with a message box
+naming the interpreter it tried to use. Fix it by installing ISSControl's
+dependencies into that same interpreter, e.g.:
+
+```sh
+py -3.13 -m pip install -e .   # or whichever version `py -0p` marks as default
+```
 
 ## Status
 
