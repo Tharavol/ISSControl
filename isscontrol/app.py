@@ -12,6 +12,11 @@ posts the result back through a queue the poll loop drains, since Tk is not
 thread-safe to touch directly from a worker. The Update button (#10) drives
 a second ManagedProcess running `pip install --upgrade`, polled the same
 way as iss's own process.
+
+Window position/size and the settings.json-only iss_path_override/iss_args
+fields (#11) round-trip through `settings`: loaded in run() before the
+window is placed, applied by App, and written back to disk when the window
+closes.
 """
 
 from __future__ import annotations
@@ -20,6 +25,7 @@ import queue
 import re
 import threading
 import tkinter as tk
+from pathlib import Path
 from tkinter import messagebox, ttk
 
 from . import __version__, theme
@@ -28,6 +34,9 @@ from .iss_locate import IssNotFoundError, find_iss
 from .iss_update import UpdateState, UpdateStatus, UpstreamCheckError, check_for_update
 from .iss_update import start_update as start_update_process
 from .managed_process import ManagedProcess
+from .settings import load_settings, save_settings
+
+_GEOMETRY_RE = re.compile(r"^(\d+)x(\d+)([+-]\d+)([+-]\d+)$")
 
 # How often the poll loop drains iss's output and checks whether it's still
 # running. Frequent enough that the log feels live, cheap enough to leave
@@ -47,9 +56,10 @@ def _level_tag(line: str) -> str:
 
 
 class App(ttk.Frame):
-    def __init__(self, root: tk.Tk) -> None:
+    def __init__(self, root: tk.Tk, settings: dict) -> None:
         super().__init__(root, padding=18)
         self.root = root
+        self._settings = settings
         self.pack(fill="both", expand=True)
 
         self._iss: ManagedProcess | None = None
@@ -174,18 +184,21 @@ class App(ttk.Frame):
 
     # ---- Process control --------------------------------------------------
 
+    def _find_iss(self) -> Path:
+        return find_iss(override=self._settings.get("iss_path_override") or None)
+
     def start_iss(self) -> None:
         if self._iss is not None and self._iss.is_running():
             return
         try:
-            iss_path = find_iss()
+            iss_path = self._find_iss()
         except IssNotFoundError as error:
             self._append_log("error", str(error))
             messagebox.showerror("Can't find iss", str(error), parent=self.root)
             return
 
         self._append_log("step", f"Starting {iss_path}")
-        self._iss = ManagedProcess(iss_path)
+        self._iss = ManagedProcess(iss_path, list(self._settings.get("iss_args", [])))
         self._iss.start()
         self._was_running = True
         self._set_running_state(True, pid=self._iss.pid)
@@ -206,7 +219,7 @@ class App(ttk.Frame):
         if self._update_proc is not None and self._update_proc.is_running():
             return
         try:
-            iss_path = find_iss()
+            iss_path = self._find_iss()
             self._update_proc = start_update_process(iss_path)
         except (IssNotFoundError, NotInstalledError) as error:
             self._append_log("error", str(error))
@@ -220,7 +233,7 @@ class App(ttk.Frame):
 
     def _check_for_update_worker(self) -> None:
         try:
-            iss_path = find_iss()
+            iss_path = self._find_iss()
             status = check_for_update(iss_path)
         except (IssNotFoundError, NotInstalledError, UpstreamCheckError) as error:
             self._update_results.put(("error", str(error)))
@@ -317,18 +330,56 @@ class App(ttk.Frame):
         self._log.configure(state="disabled")
 
 
+def _initial_geometry(root: tk.Tk, settings: dict) -> str:
+    """A Tk geometry string for *settings*, clamped to the current screen.
+
+    The saved x/y can point at a monitor that is no longer connected (a
+    laptop undocked since the last session, say) -- clamping rather than
+    trusting it outright means the window still opens somewhere reachable
+    instead of off the visible desktop.
+    """
+    width = min(settings["window_width"], root.winfo_screenwidth())
+    height = min(settings["window_height"], root.winfo_screenheight())
+    x, y = settings["window_x"], settings["window_y"]
+    if x is None or y is None:
+        return f"{width}x{height}"
+    x = max(0, min(x, root.winfo_screenwidth() - 100))
+    y = max(0, min(y, root.winfo_screenheight() - 100))
+    return f"{width}x{height}+{x}+{y}"
+
+
+def _save_window_geometry(root: tk.Tk, settings: dict) -> None:
+    match = _GEOMETRY_RE.match(root.geometry())
+    if not match:
+        return
+    width, height, x, y = match.groups()
+    settings["window_width"] = int(width)
+    settings["window_height"] = int(height)
+    settings["window_x"] = int(x)
+    settings["window_y"] = int(y)
+
+
 def run() -> int:
     """Create the window and run until it closes."""
     theme.enable_dpi_awareness()
 
+    settings = load_settings()
+
     root = tk.Tk()
     root.title(f"ISSControl {__version__}")
-    root.geometry("640x560")
+    root.geometry(_initial_geometry(root, settings))
     root.minsize(520, 440)
     theme.apply(root)
     theme.apply_dark_title_bar(root)
     theme.apply_icon(root)
 
-    App(root)
+    App(root, settings)
+
+    def _on_close() -> None:
+        _save_window_geometry(root, settings)
+        save_settings(settings)
+        root.destroy()
+
+    root.protocol("WM_DELETE_WINDOW", _on_close)
     root.mainloop()
     return 0

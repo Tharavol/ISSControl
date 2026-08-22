@@ -1,6 +1,6 @@
 [project]
 name = "isscontrol"
-version = "0.3.0"
+version = "1.0.0"
 description = "Start/stop control panel and update-status front end for iShareScreen"
 readme = "README.md"
 requires-python = ">=3.11"

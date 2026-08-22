@@ -3,6 +3,30 @@
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.0.0] - 2026-08-22
+
+### Added
+
+- **Settings persistence** (#11). Window position/size, and a
+  settings.json-only `iss_path_override`/`iss_args` pair that extend the
+  fallback chain from `find_iss()` (#4), round-trip through a per-user
+  `settings.json` under `%LOCALAPPDATA%\ISSControl` -- following AddOnSync's
+  convention for a pip-installed package rather than pwgen/AddOnTools' (a
+  flat script's own directory isn't a sensible write target once installed
+  to site-packages). Every field is validated on its own read, so a
+  hand-edited or truncated file costs only the field it broke rather than
+  stopping the window from opening. A saved position is clamped to the
+  current screen bounds before being applied, since it may have been saved
+  on a monitor that is no longer connected.
+- **App icon and `.pyw` launcher** (#12). A window/taskbar icon (matching
+  the sibling AddOnSync/AddOnTools/pwgen family's dark-badge-plus-bold-glyph
+  style) and `isscontrol.pyw`, so the app can be double-clicked without a
+  console window flashing up behind it -- the icon path `theme.py` already
+  wired up in v0.1.0 just had no file behind it until now.
+- **Real usage docs** (#13). A screenshot and an explanation of what
+  Start/Stop/Update actually do, plus the PATH problem `find_iss()` works
+  around, replacing the "docs land later" placeholder.
+
 ## [0.3.0] - 2026-08-22
 
 ### Added
