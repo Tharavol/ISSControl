@@ -3,6 +3,27 @@
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.1.0] - 2026-08-22
+
+### Added
+
+- **Settings dialog with connection defaults** (#14). Host, user,
+  resolution, display scale, decoder, audio, and curtain now have a real
+  editor (extending #11's settings.json), and `iss_launch.build_args()`
+  turns them into the same CLI flags iss's own browser connect form
+  pre-fills from -- `iss --host mac.local -u me --advertise 1920x1080
+  --no-curtain` -- plus whatever's in `iss_args` as an escape hatch for
+  anything not exposed by the dialog.
+- **Password stored in Windows Credential Manager, not settings.json**
+  (#15). Filed as "discuss the approach" rather than a locked-in design;
+  keyring + Credential Manager is what got picked, matching what the issue
+  itself suggested. `iss_credentials.py` keys the stored password by
+  host/user pair; iss has no `--password` flag on purpose (its own --help
+  text notes argv is visible in `ps` / Task Manager), so it only ever
+  reaches iss over `--password-stdin`, piped through `ManagedProcess`'s new
+  `stdin_data` parameter rather than ever touching argv or disk in
+  plaintext.
+
 ## [1.0.0] - 2026-08-22
 
 ### Added

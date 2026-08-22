@@ -38,11 +38,19 @@ environment variable to the full path, or add it as `iss_path_override` in
   --upgrade --force-reinstall` against the same Python environment `iss` is
   actually installed in -- not necessarily the one running ISSControl --
   and streams that into the log pane too.
-- Window position/size persist between sessions in a per-user
-  `settings.json` (`%LOCALAPPDATA%\ISSControl` on Windows). There's no
-  settings dialog yet ([#14](https://github.com/Tharavol/ISSControl/issues/14)
-  covers that), but `iss_path_override` and `iss_args` in that file are
-  already read and applied if you want to hand-edit them in the meantime.
+- **Settings...** opens connection defaults for Start: host, user,
+  resolution, display scale, decoder, audio, and curtain, which pre-fill
+  iss's browser connect form the same way passing them as CLI flags would
+  (`iss --host mac.local -u me --advertise 1920x1080 --no-curtain`). The
+  password field stores into Windows Credential Manager via `keyring`, not
+  settings.json -- iss has no `--password` flag on purpose, since anything
+  on argv is visible in `ps` / Task Manager, so a stored password only ever
+  reaches it piped to `--password-stdin`.
+- Window position/size and the connection defaults above persist between
+  sessions in a per-user `settings.json` (`%LOCALAPPDATA%\ISSControl` on
+  Windows). `iss_path_override` and `iss_args` in that file don't have a
+  dialog of their own yet, but are read and applied if you want to
+  hand-edit them in.
 
 ## Running it
 
@@ -58,10 +66,10 @@ console window flashing up behind it.
 ## Status
 
 - **Working**: Start/Stop/Update as a managed subprocess, install-vs-upstream
-  status, settings persistence, and a console-free launcher. See
+  status, a settings dialog for connection defaults with a Credential
+  Manager-backed password, and a console-free launcher. See
   [CHANGELOG.md](CHANGELOG.md) for what shipped in each version.
-- **Not yet built**: default connection parameters and secure password
-  storage (v1.1.0).
+- All milestones through v1.1.0 are done; nothing further is currently planned.
 
 See the [issue tracker](https://github.com/Tharavol/ISSControl/issues) and
 [milestones](https://github.com/Tharavol/ISSControl/milestones) for details.

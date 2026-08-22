@@ -8,6 +8,10 @@ main thread can drain it without blocking, and take the whole process tree
 down on stop rather than trusting it to exit cleanly -- is also what the
 update flow (#10) needs to run `pip install --upgrade` and show its output
 live, so it moved out of iss_process.py into this process-agnostic module.
+
+*stdin_data* exists for one more caller: piping a password to iss's
+--password-stdin (#15) without ever putting it on argv, where `ps` / Task
+Manager could see it.
 """
 
 from __future__ import annotations
@@ -23,9 +27,18 @@ from pathlib import Path
 class ManagedProcess:
     """One subprocess invocation. Not reusable -- start a new instance to relaunch."""
 
-    def __init__(self, executable: Path, args: list[str] | None = None) -> None:
+    def __init__(
+        self,
+        executable: Path,
+        args: list[str] | None = None,
+        stdin_data: str | None = None,
+    ) -> None:
         self._executable = executable
         self._args = args or []
+        # None means "nothing to feed it" -- stdin is closed immediately
+        # instead (see start()). Used to pipe a password to iss's
+        # --password-stdin rather than ever putting it on argv (#15).
+        self._stdin_data = stdin_data
         self._proc: subprocess.Popen[str] | None = None
         self.output: queue.Queue[str] = queue.Queue()
 
@@ -55,9 +68,11 @@ class ManagedProcess:
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             # No console is attached to a GUI process, so anything the
-            # child reads from stdin would just hang. A closed stdin makes
-            # that an immediate EOF instead.
-            stdin=subprocess.DEVNULL,
+            # child reads from stdin would just hang if nobody ever writes
+            # to it. PIPE plus writing stdin_data below covers the one
+            # caller (--password-stdin) that needs a line fed to it; DEVNULL
+            # makes everyone else's stdin an immediate EOF instead.
+            stdin=subprocess.PIPE if self._stdin_data is not None else subprocess.DEVNULL,
             text=True,
             encoding="utf-8",
             errors="replace",
@@ -65,6 +80,10 @@ class ManagedProcess:
             env=env,
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         )
+        if self._stdin_data is not None:
+            assert self._proc.stdin is not None
+            self._proc.stdin.write(self._stdin_data)
+            self._proc.stdin.close()
         threading.Thread(target=self._pump_output, daemon=True).start()
 
     def _pump_output(self) -> None:

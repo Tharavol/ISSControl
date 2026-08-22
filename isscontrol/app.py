@@ -17,6 +17,11 @@ Window position/size and the settings.json-only iss_path_override/iss_args
 fields (#11) round-trip through `settings`: loaded in run() before the
 window is placed, applied by App, and written back to disk when the window
 closes.
+
+The Settings button opens settings_dialog's SettingsDialog to edit the
+connection defaults Start passes to iss (#14) and the Credential
+Manager-backed password (#15); iss_launch.build_args() turns the result into
+argv/stdin for start_iss().
 """
 
 from __future__ import annotations
@@ -30,11 +35,13 @@ from tkinter import messagebox, ttk
 
 from . import __version__, theme
 from .iss_install import NotInstalledError
+from .iss_launch import build_args
 from .iss_locate import IssNotFoundError, find_iss
 from .iss_update import UpdateState, UpdateStatus, UpstreamCheckError, check_for_update
 from .iss_update import start_update as start_update_process
 from .managed_process import ManagedProcess
 from .settings import load_settings, save_settings
+from .settings_dialog import edit_settings
 
 _GEOMETRY_RE = re.compile(r"^(\d+)x(\d+)([+-]\d+)([+-]\d+)$")
 
@@ -148,6 +155,8 @@ class App(ttk.Frame):
         )
         self._stop_button.pack(side="left", padx=(8, 0))
 
+        ttk.Button(actions, text="Settings...", command=self.open_settings).pack(side="right")
+
     def _build_log(self) -> None:
         holder = ttk.Frame(self)
         holder.grid(row=3, column=0, sticky="nsew", pady=(16, 0))
@@ -182,6 +191,13 @@ class App(ttk.Frame):
 
         self._append_log("muted", "Ready.")
 
+    # ---- Settings -----------------------------------------------------------
+
+    def open_settings(self) -> None:
+        updated = edit_settings(self.root, self._settings)
+        if updated is not None:
+            self._settings = updated
+
     # ---- Process control --------------------------------------------------
 
     def _find_iss(self) -> Path:
@@ -197,8 +213,9 @@ class App(ttk.Frame):
             messagebox.showerror("Can't find iss", str(error), parent=self.root)
             return
 
+        args, stdin_data = build_args(self._settings)
         self._append_log("step", f"Starting {iss_path}")
-        self._iss = ManagedProcess(iss_path, list(self._settings.get("iss_args", [])))
+        self._iss = ManagedProcess(iss_path, args, stdin_data=stdin_data)
         self._iss.start()
         self._was_running = True
         self._set_running_state(True, pid=self._iss.pid)

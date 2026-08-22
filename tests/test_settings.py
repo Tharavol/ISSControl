@@ -39,7 +39,14 @@ class TestLoadSettings:
             "window_width": 800,
             "window_height": 600,
             "iss_path_override": r"C:\tools\iss.exe",
-            "iss_args": ["--host", "mac.local"],
+            "iss_args": ["--extra-flag"],
+            "host": "mac.local",
+            "user": "me",
+            "advertise": "1920x1080",
+            "hidpi": "on",
+            "decoder": "vt-hevc444",
+            "audio": False,
+            "curtain": False,
         }
         _isolated_settings_path.write_text(json.dumps(saved), encoding="utf-8")
 
@@ -101,12 +108,11 @@ class TestSaveSettings:
 
     def test_round_trips_through_load(self, _isolated_settings_path: Path) -> None:
         original = {
+            **DEFAULT_SETTINGS,
             "window_x": 50,
             "window_y": 60,
             "window_width": 700,
             "window_height": 500,
-            "iss_path_override": "",
-            "iss_args": [],
         }
         save_settings(original)
 

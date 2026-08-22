@@ -9,11 +9,19 @@ settings.json next to the script itself -- ISSControl is pip-installed, and
 site-packages is not a place to write to. This instead follows AddOnSync's
 convention and stores the file under the per-user app-data directory.
 
-`iss_path_override` and `iss_args` are read and applied even though nothing
-in the UI writes them yet -- a settings dialog to edit them belongs to #14,
-which extends this module rather than replacing it. Until then they're only
-reachable by hand-editing the file, same as pwgen/AddOnTools' settings.json
-before either project had a preferences dialog.
+`iss_path_override` and `iss_args` predate any settings UI -- #14 added one
+(SettingsDialog), but only for the connection defaults below; those two
+remain reachable only by hand-editing the file, same as pwgen/AddOnTools'
+settings.json before either project had a preferences dialog.
+
+The connection defaults (host/user/advertise/hidpi/decoder/audio/curtain)
+mirror the CLI flags iss's own browser connect form pre-fills from -- see
+iss_launch.py, which turns these into that argv. The password is
+deliberately not one of these fields: iss has no --password flag by design
+(anything on argv is visible in ps/Task Manager), and settings.json is
+plaintext read/write with no access control, so it is not a place to put a
+secret either. iss_credentials.py stores it in Windows Credential Manager
+instead (#15).
 """
 
 from __future__ import annotations
@@ -34,6 +42,7 @@ MAX_DIMENSION = 10000
 MAX_ARGS = 50
 MAX_ARG_LEN = 500
 MAX_PATH_LEN = 32767
+MAX_FIELD_LEN = 255
 
 DEFAULT_SETTINGS = {
     # None means "let Tk place it" -- there's nothing sensible to default a
@@ -45,7 +54,24 @@ DEFAULT_SETTINGS = {
     # "" means autodetect (find_iss()'s own search order) -- see issue #4.
     "iss_path_override": "",
     "iss_args": [],
+    # Connection defaults (#14): "" for a string field means "omit the flag,
+    # let iss use its own default" -- distinct from a saved empty string
+    # being a meaningful choice, there's no such case among these.
+    "host": "",
+    "user": "",
+    "advertise": "",
+    "hidpi": "",
+    "decoder": "",
+    # iss defaults both to on; False is the only state worth storing, since
+    # it's the one that adds a flag (--no-audio/--no-curtain).
+    "audio": True,
+    "curtain": True,
 }
+
+# The field names the settings dialog (#14) writes as plain strings, each
+# capped at MAX_FIELD_LEN -- short values, but a hand-edited file must not
+# be able to put a novel in any of them.
+_STRING_FIELDS = ("host", "user", "advertise", "hidpi", "decoder")
 
 
 def app_data_dir() -> Path:
@@ -100,6 +126,15 @@ def load_settings() -> dict:
     args = saved.get("iss_args")
     if isinstance(args, list):
         settings["iss_args"] = [a[:MAX_ARG_LEN] for a in args[:MAX_ARGS] if isinstance(a, str)]
+
+    for field in _STRING_FIELDS:
+        value = saved.get(field)
+        if isinstance(value, str):
+            settings[field] = value[:MAX_FIELD_LEN]
+
+    for flag in ("audio", "curtain"):
+        if isinstance(saved.get(flag), bool):
+            settings[flag] = saved[flag]
 
     return settings
 
