@@ -128,6 +128,22 @@ def apply_icon(root: tk.Tk) -> None:
         pass  # .ico support is Windows-only; nothing to fall back to elsewhere.
 
 
+def set_app_user_model_id() -> None:
+    """Give the process its own taskbar identity, separate from pythonw.exe.
+
+    Without this, Windows groups the taskbar button under the host
+    executable's own identity and shows pythonw.exe's embedded icon there
+    instead of the window's icon set via apply_icon() -- iconbitmap() only
+    controls the title bar and Alt-Tab icon, not the taskbar button.
+    """
+    if sys.platform != "win32":
+        return
+    try:
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("Tharavol.ISSControl")
+    except (OSError, AttributeError):
+        pass
+
+
 def enable_dpi_awareness() -> None:
     """Stop Windows bitmap-scaling the window into a blurry mess on high DPI."""
     if sys.platform != "win32":

@@ -3,6 +3,18 @@
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.3.2] - 2026-08-23
+
+### Fixed
+
+- **Taskbar icon showing pythonw.exe's default Python icon instead of
+  ISSControl's own**, even though the title bar and Alt-Tab icon were
+  already correct. `iconbitmap()` only controls those two; Windows groups
+  the actual taskbar button by the process's Application User Model ID,
+  which defaults to the host executable's own identity when unset. Fixed
+  by calling `SetCurrentProcessExplicitAppUserModelID` once at startup, the
+  same fix already shipped in the sibling AddOnSync project.
+
 ## [1.3.1] - 2026-08-23
 
 ### Changed

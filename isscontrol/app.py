@@ -441,6 +441,7 @@ def _save_window_geometry(root: tk.Tk, settings: dict) -> None:
 def run() -> int:
     """Create the window and run until it closes."""
     theme.enable_dpi_awareness()
+    theme.set_app_user_model_id()
 
     settings = load_settings()
 
