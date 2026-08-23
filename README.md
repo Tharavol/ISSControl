@@ -62,16 +62,19 @@ environment variable to the full path, or add it as `iss_path_override` in
 ## Running it
 
 The [Releases page](https://github.com/Tharavol/ISSControl/releases) has a
-standalone `ISSControl.exe` for each tagged version -- no Python install
-needed, just download and run it (it's still just a start/stop controller
-for `iss`, which has to be `pip install`ed separately regardless -- see
-above). Otherwise, from source:
+zip of the source for each tagged version. Unzip it and install like any
+other Python project -- there's no standalone exe, since anyone running
+this already needs a Python environment with `iss` itself `pip install`ed
+into it (see above), so a compiled build wouldn't remove the one real
+dependency:
 
 ```sh
 pip install -e .
 isscontrol
 # or: python -m isscontrol
 ```
+
+Cloning the repo works the same way instead of downloading the zip.
 
 On Windows, double-clicking `isscontrol.pyw` runs the same app without a
 console window flashing up behind it. It has no shebang, so Windows opens
@@ -85,24 +88,35 @@ dependencies into that same interpreter, e.g.:
 py -3.13 -m pip install -e .   # or whichever version `py -0p` marks as default
 ```
 
+`keyring` is the dependency most likely to bite here specifically: it's
+what the password field (above) reads and writes to Credential Manager
+through, and it's the same `pip install -e .` that pulls it in. If
+`keyring` isn't installed into the interpreter ISSControl actually runs
+under -- the same multi-Python mismatch as above, just without the
+message box, since it only breaks the password field rather than startup
+-- saving or loading a password will fail silently. On Windows, `keyring`
+declares its Credential Manager backend (`pywin32-ctypes`) as a normal
+dependency, so a plain `pip install keyring` (or `pip install -e .` for
+this project) is enough; there's no separate backend package to install
+by hand.
+
 ## Releasing
 
 Pushing a `vX.Y.Z` tag runs [.github/workflows/release.yml](.github/workflows/release.yml):
-tests, then a `pyinstaller ISSControl.spec` build (a windowed onefile
-`ISSControl.exe`, matching `isscontrol.pyw`'s no-console behavior --
-see the spec file for why it points there rather than the package's own
-`__main__.py`), then attaches the exe to a GitHub Release for that tag.
-To build the same thing locally: `pip install -e ".[build]"` then
-`pyinstaller ISSControl.spec`.
+tests, then a zip of the source files (`isscontrol/`, `isscontrol.pyw`,
+`pyproject.toml`, `README.md`, `LICENSE`, `CHANGELOG.md`, `AUTHORS`)
+attached to a GitHub Release for that tag. No compiled build -- see
+[CHANGELOG.md](CHANGELOG.md) for why v1.3.0's standalone `ISSControl.exe`
+was reverted.
 
 ## Status
 
 - **Working**: Start/Stop/Update as a managed subprocess, install-vs-upstream
   status, a settings dialog for connection defaults with a Credential
-  Manager-backed password, a console-free launcher, and a standalone
-  `ISSControl.exe` built and released automatically on each tag. See
-  [CHANGELOG.md](CHANGELOG.md) for what shipped in each version.
-- All milestones through v1.2.0 are done; nothing further is currently planned.
+  Manager-backed password, a console-free launcher, and a source zip built
+  and released automatically on each tag. See [CHANGELOG.md](CHANGELOG.md)
+  for what shipped in each version.
+- All milestones through v1.3.0 are done; nothing further is currently planned.
 
 See the [issue tracker](https://github.com/Tharavol/ISSControl/issues) and
 [milestones](https://github.com/Tharavol/ISSControl/milestones) for details.

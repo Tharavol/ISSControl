@@ -1,8 +1,12 @@
 name: Release
 
-# Builds the standalone ISSControl.exe (see ISSControl.spec) and attaches it
-# to a GitHub Release whenever a version tag is pushed. Tests run first so a
-# broken build never gets published.
+# Zips the source files needed to `pip install` this project and attaches
+# that zip to a GitHub Release whenever a version tag is pushed. Tests run
+# first so a broken build never gets published. No compiled artifact is
+# built -- see #22: anyone running ISSControl already needs a Python
+# environment to have installed iShareScreen into in the first place, so a
+# standalone exe (v1.3.0's approach) added build complexity without
+# removing the one dependency (Python) it would need to matter.
 on:
   push:
     tags:
@@ -24,15 +28,22 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e ".[dev,build]"
+          python -m pip install -e ".[dev]"
 
       - name: Run tests
         run: pytest
 
-      - name: Build ISSControl.exe
-        run: pyinstaller ISSControl.spec
+      - name: Build source zip
+        shell: pwsh
+        run: |
+          $name = "ISSControl-${{ github.ref_name }}"
+          $dest = "dist/$name"
+          New-Item -ItemType Directory -Path $dest | Out-Null
+          Copy-Item -Recurse isscontrol "$dest/isscontrol"
+          Copy-Item isscontrol.pyw, pyproject.toml, README.md, LICENSE, CHANGELOG.md, AUTHORS "$dest/"
+          Compress-Archive -Path $dest -DestinationPath "dist/$name.zip"
 
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "${{ github.ref_name }}" dist/ISSControl.exe --generate-notes
+        run: gh release create "${{ github.ref_name }}" dist/ISSControl-${{ github.ref_name }}.zip --generate-notes

@@ -3,6 +3,30 @@
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
+## [1.3.1] - 2026-08-23
+
+### Changed
+
+- **Release format reverted to a source zip** (#22). v1.3.0's standalone
+  `ISSControl.exe` added a PyInstaller build to CI without removing the one
+  real dependency it would need to in order to matter: anyone running
+  ISSControl already needs a Python environment, since `iss` itself has to
+  be `pip install`ed into one regardless. `.github/workflows/release.yml`
+  now zips the source files (`isscontrol/`, `isscontrol.pyw`,
+  `pyproject.toml`, `README.md`, `LICENSE`, `CHANGELOG.md`, `AUTHORS`) and
+  attaches that to the GitHub Release instead of building an exe.
+  `ISSControl.spec` and the `build` optional-dependency group are removed.
+
+### Documentation
+
+- **Keyring install/environment instructions in the README** (#23). The
+  password field's Credential Manager storage depends on `keyring` being
+  installed into the same interpreter ISSControl actually runs under --
+  the README now calls this out explicitly next to the existing
+  `.pyw`/multi-Python gotcha, and confirms `keyring` pulls in its own
+  Windows backend (`pywin32-ctypes`) automatically, so no separate backend
+  package needs installing by hand.
+
 ## [1.3.0] - 2026-08-22
 
 ### Added
