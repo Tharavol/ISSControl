@@ -35,13 +35,16 @@ jobs:
 
       - name: Build source zip
         shell: pwsh
+        # git archive rather than a manual file copy: it packs the tracked
+        # tree straight from the index, so gitignored cruft a prior step
+        # left lying around on the runner (e.g. isscontrol/__pycache__/
+        # from the pytest run above) can't end up in the release zip.
         run: |
-          $name = "ISSControl-${{ github.ref_name }}"
-          $dest = "dist/$name"
-          New-Item -ItemType Directory -Path $dest | Out-Null
-          Copy-Item -Recurse isscontrol "$dest/isscontrol"
-          Copy-Item isscontrol.pyw, pyproject.toml, README.md, LICENSE, CHANGELOG.md, AUTHORS "$dest/"
-          Compress-Archive -Path $dest -DestinationPath "dist/$name.zip"
+          New-Item -ItemType Directory -Path dist | Out-Null
+          git archive --format=zip `
+            --prefix="ISSControl-${{ github.ref_name }}/" `
+            -o "dist/ISSControl-${{ github.ref_name }}.zip" `
+            HEAD -- isscontrol isscontrol.pyw pyproject.toml README.md LICENSE CHANGELOG.md AUTHORS
 
       - name: Create GitHub release
         env:
